@@ -38,10 +38,7 @@
    (send self :set-val '*imitation-mode* _*imitation-mode*)
    (send self :set-val 'target-force (instance omni_msgs::OmniFeedback :init))
    (send self :set-val 'zero-force nil)
-   (send self :set-val 'master-initial-q (quaternion2matrix #f(0.5 -0.5 -0.5 -0.5)))
-   (send self :set-val 'hironx-initial-q (quaternion2matrix #f(0 1.0 0 0)))
-   (send self :set-val 'transformation-matrix (make-matrix 3 3 (list (list 0 1 0) (list -1 0 0) (list 0 0 1))))
-   (send self :set-val 'q-m-p (m* (send self :get-val 'hironx-initial-q) (inverse-matrix (send self :get-val 'master-initial-q))))
+   (send self :set-val 'transformation-matrix (make-matrix 3 3 (list (list 0 -1 0) (list 1 0 0) (list 0 0 1))))
    (send self :set-val 'force-pub-topic (format nil "/~A/phantom/force_feedback" (send self :get-val 'master-dev-name)))
    (send self :set-val '*grasp-button* _*grasp-button*)
    (send self :set-val '*enable-button* "initial")
@@ -70,6 +67,15 @@
               (send self :set-val 'target-pose (send self :set-initial-pose)))
 
   (:device-state-sub (msg)
+                     (send self :set-val '*touch-trans*
+                           (float-vector (send msg :pose :position :y)
+                                         (send msg :pose :position :x)
+                                         (send msg :pose :position :z)))
+                     (send self :set-val '*touch-rot*
+                           (float-vector (send msg :pose :orientation :w)
+                                         (send msg :pose :orientation :x)
+                                         (send msg :pose :orientation :y)
+                                         (send msg :pose :orientation :z)))
                      ;; initial device-target-pos
                      (if (not (send self :get-val 'device-target-pos))
                          (send self :set-val 'device-target-pos (send msg :pose :position)))
@@ -84,28 +90,8 @@
                      (if (string= (send self :get-val '*enable-button*) "initial")
                          (cond ((send msg :locked) (send self :set-val '*enable-button* nil))
                                ((not (send msg :locked)) (send self :set-val '*enable-button* t))))
-                     ;; set device-to-endcoords-transform
-                     (if (not (send self :get-val 'device-to-endcoords-transform))
-                         (progn
-                           (setq initial-device-rotation-matrix
-                                 (quaternion2matrix
-                                  (float-vector (send msg :pose :orientation :w)
-                                                (send msg :pose :orientation :x)
-                                                (send msg :pose :orientation :y)
-                                                (send msg :pose :orientation :z))))
-                           (setq adjust-initial-device-rotation-matrix
-                                 (m* (send self :get-val 'transformation-matrix)
-                                     (m* initial-device-rotation-matrix
-                                         (transpose (send self :get-val 'transformation-matrix)))))
-                           (setq initial-device-coords
-                                 (send (make-coords) :Euler
-                                       (elt (elt (euler-angle adjust-initial-device-rotation-matrix) 0) 0)
-                                       (elt (elt (euler-angle adjust-initial-device-rotation-matrix) 0) 1)
-                                       (elt (elt (euler-angle adjust-initial-device-rotation-matrix) 0) 2)))
-                           (send self :set-val 'device-to-endcoords-transform
-                                 (if (string= (send self :get-val 'arm-name) "larm")
-                                     (send (send initial-device-coords :copy-worldcoords) :transformation (send *hironxjsk* :larm :end-coords :copy-worldcoords))
-                                   (send (send initial-device-coords :copy-worldcoords) :transformation (send *hironxjsk* :rarm :end-coords :copy-worldcoords))))))
+                     (if (not (send self :get-val 'initial-device-pose))
+                         (send self :set-initial-device-pose))
                      ;; gripper's states
                      (if (and (not *grasp-button*) (send msg :close_gripper))
                          (progn
@@ -137,6 +123,7 @@
                          (progn
                            (send self :cal-interval-time)
                            (send self :set-val 'device-target-pos (send msg :pose :position))
+                           (send self :set-initial-device-pose)
                            (send self :set-val '*enable-button* t)
                            (cond ((and (not collection-start) (< interval-time 1))
                                   (progn
@@ -172,16 +159,16 @@
                                         (send self :get-val 'delta-pos)) :local)
                            (send self :set-val 'device-target-pos (send msg :pose :position))
                            ;; update rot
-                           (setq cur-device-q (quaternion2matrix (send self :get-val '*touch-rot*)))
-                           (setq adjust-cur-device-q
-                                 (m* (send self :get-val 'transformation-matrix)
-                                     (m* cur-device-q (transpose (send self :get-val 'transformation-matrix)))))
-                           (setq cur-device-rot
+                           (setq cur-device-rot (quaternion2matrix (send self :get-val '*touch-rot*)))
+                           (setq cur-device-pose
                                  (send (make-coords) :Euler
-                                       (elt (elt (euler-angle adjust-cur-device-q) 0) 0)
-                                       (elt (elt (euler-angle adjust-cur-device-q) 0) 1)
-                                       (elt (elt (euler-angle adjust-cur-device-q) 0) 2)))
-                           (send cur-device-rot :transform (send self :get-val 'device-to-endcoords-transform))
+                                       (elt (elt (euler-angle cur-device-rot) 0) 0)
+                                       (elt (elt (euler-angle cur-device-rot) 0) 1)
+                                       (elt (elt (euler-angle cur-device-rot) 0) 2)))
+                           (send cur-device-pose :translate (send self :get-val '*touch-trans*) :world)
+                           (setq device-transform (send (send self :get-val 'initial-device-pose) :transformation (send cur-device-pose :copy-worldcoords)))
+                           (setq device-transform-rot (send device-transform :rot))
+                           (setq endcoords-transform-rot (m* (m* (inverse-matrix (send self :get-val 'transformation-matrix)) (m* device-transform-rot (send self :get-val 'transformation-matrix))) (send self :get-val 'base-to-endcoords-transform)))
                            (send (send self :get-val 'target-pose) :Euler
                                  (elt (elt (euler-angle (send cur-device-rot :rot)) 0) 0)
                                  (elt (elt (euler-angle (send cur-device-rot :rot)) 0) 1)
@@ -191,6 +178,9 @@
                                                (send msg :pose :orientation :x)
                                                (send msg :pose :orientation :y)
                                                (send msg :pose :orientation :z)))))
+                                 (elt (elt (euler-angle endcoords-transform-rot) 0) 0)
+                                 (elt (elt (euler-angle endcoords-transform-rot) 0) 1)
+                                 (elt (elt (euler-angle endcoords-transform-rot) 0) 2))))
                      (send self :set-val '*robot-action*
                            (concatenate float-vector
                                         (send self :get-val 'delta-pos)
@@ -199,6 +189,16 @@
                      (send (send self :get-val '*robot-action-msg*) :data (send self :get-val '*robot-action*))
                      (send (send self :get-val '*robot-action-msg*) :header :stamp (ros::time-now))
                      (ros::publish (send self :get-val 'robot-action-msg-name) (send self :get-val '*robot-action-msg*)))
+
+  (:set-initial-device-pose ()
+                                       (setq initial-device-rotation-matrix (quaternion2matrix (send self :get-val '*touch-rot*)))
+                                       (send self :set-val 'initial-device-pose
+                                             (send (make-coords) :Euler
+                                                   (elt (elt (euler-angle initial-device-rotation-matrix) 0) 0)
+                                                   (elt (elt (euler-angle initial-device-rotation-matrix) 0) 1)
+                                                   (elt (elt (euler-angle initial-device-rotation-matrix) 0) 2)))
+                                       (send (send self :get-val 'initial-device-pose) :translate (send self :get-val '*touch-trans*) :world)
+                                       (send self :set-val 'base-to-endcoords-transform (send (send self :get-val 'target-pose) :worldrot)))
 
   (:force-cb (msg)
              (if (eq (send self :get-val 'zero-force) nil)
@@ -288,15 +288,6 @@
                          (setq initial-target-pose (send *hironxjsk* :larm :end-coords :copy-worldcoords))
                        (setq initial-target-pose (send *hironxjsk* :rarm :end-coords :copy-worldcoords))))
 
-  (:adjust-rotation-matrix (rotation-matrix)
-                           (setq tar-q (m* (send self :get-val 'q-m-p) rotation-matrix))
-                           (setq adjust-quaternion
-                                 (float-vector (elt (matrix2quaternion tar-q) 0)
-                                               (elt (matrix2quaternion tar-q) 1)
-                                               (elt (matrix2quaternion tar-q) 2)
-                                               (elt (matrix2quaternion tar-q) 3)))
-                           (setq adjust-rotation-matrix (quaternion2matrix adjust-quaternion)))
-
   (:cal-interval-time ()
                       (setq time-b (ros::time-now))
                       (setq interval-time (- (send time-b :sec) (send time-a :sec)))
@@ -352,3 +343,4 @@
   (send node :run))
 
 (main)
+a
