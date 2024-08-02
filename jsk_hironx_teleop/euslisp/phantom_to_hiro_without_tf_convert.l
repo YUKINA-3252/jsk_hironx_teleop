@@ -25,7 +25,7 @@
 (defvar *tf-listener* nil)
 
 (defclass single-arm-handler
-  :slots (robot-id arm-name master-dev-name pos-scale force-scale side master-initial-q hironx-initial-q q-m-p target-pose target-force device-target-pos zero-force force-topic force-pub-topic device-to-endcoords-transform transformation-matrix *arm-end-coords* *arm-end-pos* *arm-end-rpy* *arm-tip-pos* *robot-state* *robot-state-msg* robot-state-msg-name *robot-action* *robot-action-msg* robot-action-msg-name *enable-button* *grasp-button* *touch-trans* *touch-rot* data-collect-trigger-topic-name *imitation-mode* imitation-first-action delta-pos delta-rpy initial-device-pose base-to-endcoords-transform t0-rpy t1-rpy))
+  :slots (robot-id arm-name master-dev-name pos-scale force-scale side master-initial-q hironx-initial-q q-m-p target-pose target-force device-target-pos zero-force force-topic force-pub-topic device-to-endcoords-transform transformation-matrix *arm-end-coords* *arm-end-pos* *arm-end-rpy* *arm-tip-pos* *robot-state-pose* *robot-state-msg-pose* robot-state-msg-name-pose *robot-state-joint-angle* *robot-state-msg-joint-angle* robot-state-msg-name-joint-angle *robot-action-pose* *robot-action-msg-pose* robot-action-msg-name-pose *robot-action-joint-angle* *robot-action-msg-joint-angle* robot-action-msg-name-joint-angle *enable-button* *grasp-button* *touch-trans* *touch-rot* data-collect-trigger-topic-name *imitation-mode* imitation-first-action delta-pos delta-rpy initial-device-pose base-to-endcoords-transform *left-target-arrow*))
 
 (defmethod single-arm-handler
   (:init
@@ -43,11 +43,17 @@
    (send self :set-val '*grasp-button* _*grasp-button*)
    (send self :set-val '*enable-button* "initial")
    (setq time-a (ros::time-now))
-   (send self :set-val '*robot-state-msg* (instance jsk_hironx_teleop::FloatVector :init))
-   (send self :set-val 'robot-state-msg-name (format nil "/hironx_imitation/~A/robot_state" arm-name))
-   (send self :set-val '*robot-action-msg* (instance jsk_hironx_teleop::FloatVector :init))
-   (send self :set-val 'robot-action-msg-name (format nil "/hironx_imitation/~A/robot_action" arm-name))
+   (send self :set-val '*robot-state-msg-pose* (instance jsk_hironx_teleop::FloatVector :init))
+   (send self :set-val '*robot-state-msg-joint-angle* (instance jsk_hironx_teleop::FloatVector :init))
+   (send self :set-val 'robot-state-msg-name-pose (format nil "/hironx_imitation/~A/robot_state/pose" arm-name))
+   (send self :set-val 'robot-state-msg-name-joint-angle (format nil "/hironx_imitation/~A/robot_state/joint_angle" arm-name))
+   (send self :set-val '*robot-action-msg-pose* (instance jsk_hironx_teleop::FloatVector :init))
+   (send self :set-val '*robot-action-msg-joint-angle* (instance jsk_hironx_teleop::FloatVector :init))
+   (send self :set-val 'robot-action-msg-name-pose (format nil "/hironx_imitation/~A/robot_action/pose" arm-name))
+   (send self :set-val 'robot-action-msg-name-joint-angle (format nil "/hironx_imitation/~A/robot_action/joint_angle" arm-name))
    (send self :set-val 'data-collect-trigger-topic-name (format nil "/hironx_imitation/~A/data_collector/record" arm-name))
+   (send self :set-val '*left-target-arrow* (arrow))
+   ;; (send self :set-val '*tf-listener* (instance ros::transform-listener :init))
    (send self :setup-ros))
 
   (:setup-ros ()
@@ -56,12 +62,15 @@
               ;; (setq force-pub-topic (format nil "/~A/phantom/force_feedback" (send self :get-val 'master-dev-name)))]
               ;; (ros::subscribe force-topic geometry_msgs::WrenchStamped #'send self :force-cb 1)
               ;; (ros::advertise (send self :get-val 'force-pub-topic) omni_msgs::OmniFeedback 1)
-              (ros::advertise (send self :get-val 'robot-state-msg-name) jsk_hironx_teleop::FloatVector 1)
+              (ros::advertise (send self :get-val 'robot-state-msg-name-pose) jsk_hironx_teleop::FloatVector 1)
+              (ros::advertise (send self :get-val 'robot-state-msg-name-joint-angle) jsk_hironx_teleop::FloatVector 1)
               (if (send self :get-val '*imitation-mode*)
                   (progn
-                    (ros::subscribe (send self :get-val 'robot-action-msg-name) jsk_hironx_teleop::FloatVector #'send self :imitation 1))
+                    (ros::subscribe (send self :get-val 'robot-action-msg-name-pose) jsk_hironx_teleop::FloatVector #'send self :imitation 1)
+                    (ros::subscribe (send self :get-val 'robot-action-msg-name-joint-angle jsk_hironx_teleop::FloatVector #'send self :imitation 1)))
                 (progn
-                  (ros::advertise (send self :get-val 'robot-action-msg-name) jsk_hironx_teleop::FloatVector 1)
+                  (ros::advertise (send self :get-val 'robot-action-msg-name-pose) jsk_hironx_teleop::FloatVector 1)
+                  (ros::advertise (send self :get-val 'robot-action-msg-name-joint-angle) jsk_hironx_teleop::FloatVector 1)
                   (ros::subscribe dev-topic omni_msgs::OmniState #'send self :device-state-sub 1)))
               (ros::advertise (send self :get-val 'data-collect-trigger-topic-name) std_msgs::String 1)
               (send self :set-val 'target-pose (send self :set-initial-pose)))
@@ -79,10 +88,6 @@
                      ;; initial device-target-pos
                      (if (not (send self :get-val 'device-target-pos))
                          (send self :set-val 'device-target-pos (send msg :pose :position)))
-                     ;; initial rpy
-                     (if (not (send self :get-val 't0-rpy))
-                         (send self :set-val 't0-rpy
-                               (elt (rpy-angle (send (send (send self :get-val 'target-pose) :copy-worldcoords) :worldrot)) 0)))
                      ;; match the value of white button and msg :locked
                      (if (string= (send self :get-val '*enable-button*) "initial")
                          (cond ((send msg :locked) (send self :set-val '*enable-button* nil))
@@ -170,22 +175,27 @@
                            (send (send self :get-val 'target-pose) :Euler
                                  (elt (elt (euler-angle endcoords-transform-rot) 0) 0)
                                  (elt (elt (euler-angle endcoords-transform-rot) 0) 1)
-                                 (elt (elt (euler-angle endcoords-transform-rot) 0) 2))
-                           (send self :set-val 't1-rpy
-                                 (elt (rpy-angle (send (send (send self :get-val 'target-pose) :copy-worldcoords) :worldrot)) 0))
-                           ;; delta rpy
-                           (send self :set-val 'delta-rpy
-                                 (v- (coerce (send self :get-val 't1-rpy) float-vector)
-                                     (coerce (send self :get-val 't0-rpy) float-vector)))
-                           (send self :set-val 't0-rpy (send self :get-val 't1-rpy))))
-                     (send self :set-val '*robot-action*
-                           (concatenate float-vector
-                                        (send self :get-val 'delta-pos)
-                                        (send self :get-val 'delta-rpy)
-                                        (float-vector (if (send self :get-val '*grasp-button*) 1 0))))
-                     (send (send self :get-val '*robot-action-msg*) :data (send self :get-val '*robot-action*))
-                     (send (send self :get-val '*robot-action-msg*) :header :stamp (ros::time-now))
-                     (ros::publish (send self :get-val 'robot-action-msg-name) (send self :get-val '*robot-action-msg*)))
+                                 (elt (elt (euler-angle endcoords-transform-rot) 0) 2))))
+                     ;; solve ik
+                     (if (string= (send self :get-val 'arm-name) "larm")
+                         (progn
+                           (send (send self :get-val '*left-target-arrow*) :move-to (send (send self :get-val 'target-pose) :copy-worldcoords) :world)
+                           (solve-ik-larm (send (send self :get-val '*left-target-arrow*) :copy-worldcoords))
+                           (send self :set-val '*robot-action-pose*
+                                 (concatenate float-vector
+                                              (scale 0.01 (send (send *hironxjsk* :larm :end-coords :copy-worldcoords) :worldpos))
+                                              (elt (rpy-angle (send (send *hironxjsk* :larm :end-coords :copy-worldcoords) :worldrot)) 0)
+                                              (if (send self :get-val '*grasp-button*) #f(1) #f(0))))
+                           (print "test")))
+                     ;; publish action
+                     (setq pub-time (ros::time-now))
+                     (send self :set-val '*robot-action-joint-angle* (coerce (mapcar #'deg2rad (coerce (send *hironxjsk* :angle-vector) cons)) float-vector))
+                     (send (send self :get-val '*robot-action-msg-pose*) :data (send self :get-val '*robot-action-pose*))
+                     (send (send self :get-val '*robot-action-msg-joint-angle*) :data (send self :get-val '*robot-action-joint-angle*))
+                     (send (send self :get-val '*robot-action-msg-pose*) :header :stamp pub-time)
+                     (send (send self :get-val '*robot-action-msg-joint-angle*) :header :stamp pub-time)
+                     (ros::publish (send self :get-val 'robot-action-msg-name-pose) (send self :get-val '*robot-action-msg-pose*))
+                     (ros::publish (send self :get-val 'robot-action-msg-name-joint-angle) (send self :get-val '*robot-action-msg-joint-angle*)))
 
   (:set-initial-device-pose ()
                             (setq initial-device-rotation-matrix (quaternion2matrix (send self :get-val '*touch-rot*)))
@@ -194,9 +204,7 @@
                                         (elt (elt (euler-angle initial-device-rotation-matrix) 0) 0)
                                         (elt (elt (euler-angle initial-device-rotation-matrix) 0) 1)
                                         (elt (elt (euler-angle initial-device-rotation-matrix) 0) 2)))
-                            (print "test")
                             (send (send self :get-val 'initial-device-pose) :translate (send self :get-val '*touch-trans*) :world)
-                            (print "test")
                             (send self :set-val 'base-to-endcoords-transform (send (send self :get-val 'target-pose) :worldrot)))
 
   (:force-cb (msg)
@@ -214,35 +222,32 @@
                        (ros::publish (send self :get-val 'force-pub-topic) (send self :get-val 'target-force)))
 
   (:update-robot ()
-                 (send *hironxjsk* :angle-vector (send *ri* :state :potentio-vector))
-                 (if (string= (send self :get-val 'arm-name) "larm")
-                     (progn
-                       (send self :set-val '*arm-end-coords* (send *hironxjsk* :larm :end-coords :copy-worldcoords))
-                       (send self :set-val '*arm-tip-pos* (send (send *hironxjsk* :get :lhand-tip-coords) :worldpos)))
-                   (progn
-                     (send self :set-val '*arm-end-coords* (send *hironxjsk* :rarm :end-coords :copy-worldcoords))
-                     (send self :set-val '*arm-tip-pos* (send (send *hironxjsk* :get :rhand-tip-coords) :worldpos))))
-                 (send self :set-val '*arm-end-pos* (send *arm-end-coords* :worldpos))
-                 (send self :set-val '*arm-end-rpy* (coerce (elt
-                                                             (rpy-angle (send *arm-end-coords* :worldrot)) 0) float-vector))
-                 (send self :set-val '*robot-state*
+                 (setq pub-time (ros::time-now))
+                 (send self :set-val '*robot-state-pose*
+                       (send *tfl* :lookup-transform "WAIST"
+                             (format nil "~A_end_coords" (send self :get-val 'arm-name))
+                             (ros::time 0)))
+                 (send self :set-val '*robot-state-pose*
                        (concatenate float-vector
-                                    (send self :get-val '*arm-end-pos*)
-                                    (send self :get-val '*arm-end-rpy*)
-                                    (send self :get-val '*arm-tip-pos*)))
-                 (send (send self :get-val '*robot-state-msg*) :data (send self :get-val '*robot-state*))
-                 (send (send self :get-val '*robot-state-msg*) :header :stamp (ros::time-now))
-                 (ros::publish (send self :get-val 'robot-state-msg-name) (send self :get-val '*robot-state-msg*)))
+                                    (scale 0.01 (send (send self :get-val '*robot-state-pose*) :worldpos))
+                                    (elt (rpy-angle (send (send self :get-val '*robot-state-pose*) :worldrot)) 0)
+                                    (if (send self :get-val '*grasp-button*) #f(1) #f(0))))
+                 (send self :set-val '*robot-state-joint-angle* (coerce (mapcar #'deg2rad (coerce (send *ri* :state :potentio-vector) cons)) float-vector))
+                 (send (send self :get-val '*robot-state-msg-pose*) :data (send self :get-val '*robot-state-pose*))
+                 (send (send self :get-val '*robot-state-msg-joint-angle*) :data (send self :get-val '*robot-state-joint-angle*))
+                 (send (send self :get-val '*robot-state-msg-pose*) :header :stamp pub-time)
+                 (send (send self :get-val '*robot-state-msg-joint-angle*) :header :stamp pub-time)
+                 (ros::publish (send self :get-val 'robot-state-msg-name-pose) (send self :get-val '*robot-state-msg-pose*))
+                 (ros::publish (send self :get-val 'robot-state-msg-name-joint-angle) (send self :get-val '*robot-state-msg-joint-angle*)))
 
 
   (:imitation (msg)
-              ;; update pos
-              (send (send self :get-val 'target-pose) :translate
-                    (scale (send self :get-val 'pos-scale) (subseq (send msg :data) 0 3)) :local)
-              ;; update rot
-              (setq update-rpy (v+ (coerce (elt (rpy-angle (send (send self :get-val 'target-pose) :worldrot))0) float-vector) (subseq (send msg :data) 3 6)))
-              (setq update-matrix (rpy-matrix (elt update-rpy 0) (elt update-rpy 1) (elt update-rpy 2)))
-              (send (send self :get-val 'target-pose) :rotate-vector update-matrix))
+              (setq larm-action-angle-vector (coerce (subseq (send msg :data) 6 12) float-vector))
+              (setq current-angle-vector (send *hironxjsk* :angle-vector))
+              (send *hironxjsk* :angle-vector
+                    (concatenate float-vector (subseq current-angle-vector 0 6)
+                                 larm-action-angle-vector
+                                 (subseq current-angle-vector 12 15))))
 
   (:set-initial-pose ()
                      (if (string= (send self :get-val 'arm-name) "larm")
@@ -263,6 +268,7 @@
   (:run ()
         (ros::spin-once)))
 
+
 (defclass dual-arm-handler
   :slots (pos-scale-dual force-scale-dual *imitation-mode-dual* larm-handler))
 
@@ -270,23 +276,24 @@
   (:init
    (&key ((:pos-scale-dual _pos-scale-dual) 1.0) ((:force-scale-dual _force-scale-dual) 0.1) ((:*imitation-mode-dual* _*imitation-mode-dual*) t))
    (ros::roseus "dual-phantom-master")
-   (setq *left-target-arrow* (arrow))
+   ;; (setq *left-target-arrow-dual* (arrow))
    (setq *left-end-coords* (arrow))
    (send *left-end-coords* :newcoords (send *hironxjsk* :larm :end-coords :copy-worldcoords))
    (send (send *hironxjsk* :larm :end-coords) :assoc *left-end-coords*)
-   (objects (list *hironxjsk* *left-target-arrow* *left-end-coords*))
+   ;; (objects (list *hironxjsk* *left-target-arrow-dual* *left-end-coords*))
    (send self :set-val 'pos-scale-dual _pos-scale-dual)
    (send self :set-val 'force-scale-dual _force-scale-dual)
    (send self :set-val '*imitation-mode-dual* _*imitation-mode-dual*)
    (send self :set-val 'larm-handler (instance single-arm-handler :init :arm-name "larm" :master-dev-name "left_device" :pos-scale (send self :get-val 'pos-scale-dual) :force-scale (send self :get-val 'force-scale-dual) :*imitation-mode* (send self :get-val '*imitation-mode-dual*)))
    (send (send self :get-val 'larm-handler) :run)
-   (send *left-target-arrow* :move-to (send *hironxjsk* :larm :end-coords :copy-worldcoords) :world))
+   ;; (send *left-target-arrow-dual* :move-to (send *hironxjsk* :larm :end-coords :copy-worldcoords) :world)
+   )
 
   (:loop-call ()
               (send (send self :get-val 'larm-handler) :run)
-              (send *left-target-arrow* :move-to (send (send (send self :get-val 'larm-handler) :get-val 'target-pose) :copy-worldcoords) :world)
-              (solve-ik-larm (send *left-target-arrow* :copy-worldcoords))
-              ;; (send *ri* :angle-vector (send *hironxjsk* :angle-vector) (* 1.5 (/ 1000 50)))
+              ;; (send *left-target-arrow-dual* :move-to (send (send (send self :get-val 'larm-handler) :get-val 'target-pose) :copy-worldcoords) :world)
+              ;; (solve-ik-larm (send *left-target-arrow-dual* :copy-worldcoords))
+              (send *ri* :angle-vector (send *hironxjsk* :angle-vector) (* 1.5 (/ 1000 50)))
               (send *irtviewer* :draw-objects)
               ;; force
               ;; (send (send self :get-val 'larm-handler) :apply-target-force)
@@ -299,9 +306,8 @@
    (while t
      (send self :loop-call))))
 
-
 (defun main (&rest args)
-  (setq node (instance dual-arm-handler :init :pos-scale-dual 1.2 :force-scale-dual 50.0 :*imitation-mode-dual* t))
+  (setq node (instance dual-arm-handler :init :pos-scale-dual 2.0 :force-scale-dual 50.0 :*imitation-mode-dual* nil))
   (send node :run))
 
 (main)

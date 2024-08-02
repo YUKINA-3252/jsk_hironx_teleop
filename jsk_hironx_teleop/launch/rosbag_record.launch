@@ -10,6 +10,7 @@
 
   <node name="data_recorder" pkg="rosbag" type="record"
         args="
+              /filtered_joint_states
               /head_camera/depth/image_raw/compressedDepth
               /head_camera/depth/camera_info
               /head_camera/depth_registered/camera_info
@@ -20,9 +21,11 @@
               /rviz/image/compressed
               /tf
               /tf_static
-              /jsk_hironx_imitation/data_collector/record
-              /jsk_hironx_imitation/larm/robot_state
-              /jsk_hironx_imitation/larm/robot_action
+              /hironx_imitation/larm/data_collector/record
+              /hironx_imitation/larm/robot_state/pose
+              /hironx_imitation/larm/robot_state/joint_angle
+              /hironx_imitation/larm/robot_action/pose
+              /hironx_imitation/larm/robot_action/joint_angle
               -q $(arg compress_flag) -b 0
               --output-prefix $(arg output_prefix)"
         output="screen" />
