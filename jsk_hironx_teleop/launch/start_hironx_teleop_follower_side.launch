@@ -1,0 +1,13 @@
+<?xml version="1.0" ?>
+<launch>
+  <!-- Arguments for teleop control -->
+  <arg name="start_bilateral" default="true" doc="Set this value True to immidiently start Teleop-connection"/>
+
+  <!-- Touch USB to HIRONX connection -->
+  <node pkg="jsk_hironx_teleop" type="phantom_to_hironx.py" name="phantom_to_hironx" output="screen" args="--connect_pose --connect_force" if="$(arg start_bilateral)"/>
+  <!-- <node pkg="jsk_hironx_teleop" type="phantom_to_hironx.py" name="phantom_to_hironx" output="screen" args="-\-noconnect_pose -\-noconnect_force" unless="$(arg start_bilateral)"/> -->
+
+  <!-- <!-\- Publish end effector frames for easy synchronization -\-> -->
+  <!-- <node pkg="jsk_panda_teleop" type="end_effector_frames_publisher.py" name="end_effector_frames_publisher" output="screen"/> -->
+
+</launch>
