@@ -1,6 +1,0 @@
-<launch>
-  <node pkg="jsk_hironx_teleop" type="joint_filter.py" name="joint_filter" output="screen">
-    <param name="joints_to_filter" value="['LARM_JOINT0', 'LARM_JOINT1', 'LARM_JOINT2', 'LARM_JOINT3', 'LARM_JOINT4', 'LARM_JOINT5']" />
-
-  </node>
-</launch>
