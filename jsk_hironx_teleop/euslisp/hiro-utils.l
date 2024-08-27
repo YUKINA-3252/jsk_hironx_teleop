@@ -1,6 +1,7 @@
 #!/usr/bin/env roseus
 
 (load "package://hrpsys_ros_bridge_tutorials/euslisp/hironxjsk-interface.l")
+(load "package://jsk_hironx_teleop/euslisp/force-utils.l")
 
 (hironxjsk-init)
 
@@ -18,6 +19,9 @@
 (setq object-list (list *hironxjsk* *right-coords-arrow* *left-coords-arrow* *left-target-arrow* *right-target-arrow*))
 (objects object-list)
 
+(ros::subscribe "/off_lhsensor" geometry_msgs::WrenchStamped #'ftsensor-cb :larm)
+(ros::subscribe "/off_rhsensor" geometry_msgs::WrenchStamped #'ftsensor-cb :rarm)
+
 ;; connection with robot and irt
 (defun ir2ri (&optional (time 3000))
   (send *ri* :angle-vector (send *hironxjsk* :angle-vector) time)
@@ -26,11 +30,22 @@
   (send *ri* :wait-interpolation))
 (defun ir2ri-hand ()
     (send *ri* :hand-angle-vector :rhand (send *hironxjsk* :hand-angle-vector :rhand))
-    (send *ri* :hand-angle-vector :lhand (send *hironxjsk* :hand-angle-vector :lhand))
-    (send *ri* :wait-interpolation))
+    (send *ri* :hand-angle-vector :lhand (send *hironxjsk* :hand-angle-vector :lhand)))
 (defun ri2ir ()
   (send *hironxjsk* :angle-vector (send *ri* :state :potentio-vector)))
 
+;; gripper
+(defun left-stop-grasp ()
+  (send *hironxjsk* :stop-grasp :larm)
+  (send *ri* :stop-grasp :larm))
+(defun open-lhand ()
+  (let ((hand-angle-vector (send *hironxjsk* :hand-angle-vector :lhand)))
+    (setf (aref hand-angle-vector 0) 90)
+    (setf (aref hand-angle-vector 1) 0)
+    (setf (aref hand-angle-vector 2) -90)
+    (setf (aref hand-angle-vector 3) 0)
+    (send *hironxjsk* :hand-angle-vector :lhand hand-angle-vector)
+    (ir2ri-hand)))
 
 ;; ik
 (defun solve-ik-larm (target-coords)
@@ -54,7 +69,8 @@
   (send *ri* :wait-interpolation)
   (setq left-reset-pose-coords (send *hironxjsk* :larm :end-coords :copy-worldcoords))
   (setq right-reset-pose-coords (send *hironxjsk* :rarm :end-coords :copy-worldcoords))
-  (setq reset-pose-angle-vector (send *hironxjsk* :angle-vector)))
+  (setq reset-pose-angle-vector (send *hironxjsk* :angle-vector))
+  (send *left-target-arrow* :move-to (send *hironxjsk* :larm :end-coords :copy-worldcoords) :world))
 (defun reset-pose-larm ()
   (send *left-coords-arrow* :move-to (send left-reset-pose-coords :copy-worldcoords) :world)
   (solve-ik-larm (send *left-coords-arrow* :copy-worldcoords))
@@ -63,17 +79,16 @@
   (send *right-coords-arrow* :move-to (send right-reset-pose-coords :copy-worldcoords) :world)
   (solve-ik-rarm (send *right-coords-arrow* :copy-worldcoords))
   (ir2ri 5000))
-
-(defun detect-pose()
-  (send *hironxjsk* :reset-manip-pose)
-  (send *hironxjsk* :head :look-at
-        (send (send (send *hironxjsk* :torso :end-coords :copy-worldcoords)
-                    :translate #f(600 0 0)) :worldpos))
-  (send *hironxjsk* :larm :move-end-pos #f(300 0 200) :world)
-  (send *hironxjsk* :rarm :move-end-pos #f(-300 0 200) :world)
-  (ir2ri 5000)
+(defun detect-pose ()
+  (send *hironxjsk* :angle-vector #f(15.3838 -17.9424 -132.249 30.6319 60.6267 11.4336 -15.3838 -17.9424 -132.249 -30.6319 60.6267 -11.4336 0.0 0.0 50.449))
+  (setq *target-coords-right* (send (send *hironxjsk* :rarm :end-coords :copy-worldcoords) :translate #f(0 -300 0)))
+  (solve-ik-rarm *target-coords-right*)
+  (setq *target-coords-left* (send (send *hironxjsk* :larm :end-coords :copy-worldcoords) :translate #f(0 300 0)))
+  (solve-ik-larm *target-coords-left*)
+  (ir2ri)
   (send *hironxjsk* :stop-grasp)
-  (ir2ri-hand))
+  (ir2ri-hand)
+  (send *left-target-arrow* :move-to (send *hironxjsk* :larm :end-coords :copy-worldcoords) :world))
 (defun detect-pose-larm()
   (setq *left-target-arrow* (send (make-coords) :locate #f(325.704 482.265 165.629) :world))
   (solve-ik-larm *left-target-arrow*)

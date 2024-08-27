@@ -17,37 +17,39 @@
             :z (/ (aref fvec 2) 1000.0)))
 
 (defclass single-arm-handler
-  :slots (arm-name *robot-state-msg* robot-state-msg-name *arm-end-coords* *arm-tip-pos* *arm-end-pos* *arm-end-rpy* *robot-state*))
+  :slots (arm-name *robot-state-pose* *robot-state-msg-pose* robot-state-msg-name-pose *robot-state-joint-angle* *robot-state-msg-joint-angle* robot-state-msg-name-joint-angle *arm-end-coords* *arm-tip-pos* *arm-end-pos* *arm-end-rpy* *grasp-button*))
 
 (defmethod single-arm-handler
   (:init (&key ((:arm-name _arm-name) "larm"))
          (send self :set-val 'arm-name _arm-name)
-         (send self :set-val '*robot-state-msg* (instance jsk_hironx_teleop::FloatVector :init))
-         (send self :set-val 'robot-state-msg-name (format nil "/hironx_imitation/~A/robot_state" arm-name))
+         (send self :set-val '*robot-state-msg-pose* (instance jsk_hironx_teleop::FloatVector :init))
+         (send self :set-val '*robot-state-msg-joint-angle* (instance jsk_hironx_teleop::FloatVector :init))
+         (send self :set-val 'robot-state-msg-name-pose (format nil "/hironx_imitation/~A/robot_state/pose" arm-name))
+         (send self :set-val 'robot-state-msg-name-joint-angle (format nil "/hironx_imitation/~A/robot_state/joint_angle" arm-name))
          (send self :setup-ros))
 
   (:setup-ros ()
-              (ros::advertise (send self :get-val 'robot-state-msg-name) jsk_hironx_teleop::FloatVector 1))
+              (ros::advertise (send self :get-val 'robot-state-msg-name-pose) jsk_hironx_teleop::FloatVector 1)
+              (ros::advertise (send self :get-val 'robot-state-msg-name-joint-angle) jsk_hironx_teleop::FloatVector 1))
 
   (:publish-state ()
-                  (if (string= (send self :get-val 'arm-name) "larm")
-                      (progn
-                        (send self :set-val '*arm-end-coords* (send *hironxjsk* :larm :end-coords :copy-worldcoords))
-                        (send self :set-val '*arm-tip-pos* (send (send *hironxjsk* :get :lhand-tip-coords) :worldpos)))
-                    (progn
-                      (send self :set-val '*arm-end-coords* (send *hironxjsk* :rarm :end-coords :copy-worldcoords))
-                      (send self :set-val '*arm-tip-pos* (send (send *hironxjsk* :get :rhand-tip-coords) :worldpos))))
-                  (send self :set-val '*arm-end-pos* (send *arm-end-coords* :worldpos))
-                  (send self :set-val '*arm-end-rpy*
-                        (coerce (elt (rpy-angle (send *arm-end-coords* :worldrot)) 0) float-vector))
-                  (send self :set-val '*robot-state*
+                  (setq pub-time (ros::time-now))
+                  (send self :set-val '*robot-state-pose*
+                        (send *tfl* :lookup-transform "WAIST"
+                              (format nil "~A_end_coords" (send self :get-val 'arm-name))
+                              (ros::time 0)))
+                  (send self :set-val '*robot-state-pose*
                         (concatenate float-vector
-                                     (send self :get-val '*arm-end-pos*)
-                                     (send self :get-val '*arm-end-rpy*)
-                                     (send self :get-val '*arm-tip-pos*)))
-                  (send (send self :get-val '*robot-state-msg*) :data (send self :get-val '*robot-state*))
-                  (send (send self :get-val '*robot-state-msg*) :header :stamp (ros::time-now))
-                  (ros::publish (send self :get-val 'robot-state-msg-name) (send self :get-val '*robot-state-msg*))))
+                                     (scale 0.01 (send (send self :get-val '*robot-state-pose*) :worldpos))
+                                     (elt (rpy-angle (send (send self :get-val '*robot-state-pose*) :worldrot)) 0)
+                                     #f(0)))
+                 (send self :set-val '*robot-state-joint-angle* (coerce (mapcar #'deg2rad (coerce (send *ri* :state :potentio-vector) cons)) float-vector))
+                 (send (send self :get-val '*robot-state-msg-pose*) :data (send self :get-val '*robot-state-pose*))
+                 (send (send self :get-val '*robot-state-msg-joint-angle*) :data (send self :get-val '*robot-state-joint-angle*))
+                 (send (send self :get-val '*robot-state-msg-pose*) :header :stamp pub-time)
+                 (send (send self :get-val '*robot-state-msg-joint-angle*) :header :stamp pub-time)
+                 (ros::publish (send self :get-val 'robot-state-msg-name-pose) (send self :get-val '*robot-state-msg-pose*))
+                 (ros::publish (send self :get-val 'robot-state-msg-name-joint-angle) (send self :get-val '*robot-state-msg-joint-angle*))))
 
 (defclass dual-arm-handler
   :slots (larm-handler))
