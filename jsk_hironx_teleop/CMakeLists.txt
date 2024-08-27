@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   FloatVector.msg
+  ContactSensorForceMoment.msg
   )
 
 add_service_files(
