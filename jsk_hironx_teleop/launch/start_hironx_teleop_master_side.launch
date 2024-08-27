@@ -20,6 +20,16 @@
     </node>
   </group>
 
+  <!-- <group ns="right_device"> -->
+  <!--   <node name="omni_state" pkg="omni_common" type="omni_state" output="screen"> -->
+  <!--     <param name="device_name" value="Right Device"/> -->
+  <!--     <param name="omni_name" value="phantom"/> -->
+  <!--     <param name="publish_rate" value="$(arg publish_rate)"/> -->
+  <!--     <param name="reference_frame" value="$(arg reference_frame)"/> -->
+  <!--     <param name="units" value="$(arg units)"/> -->
+  <!--   </node> -->
+  <!-- </group> -->
+
   <!-- <!-\- Visualization -\-> -->
   <!-- <node pkg="rviz" type="rviz" output="screen" name="rviz" args="-d $(find jsk_hironx_teleop)/config/rviz/hironx_with_touch.rviz" if="$(arg rviz)" /> -->
   <!-- <node pkg="image_view" type="image_view" name="spectrogram_view"  > -->
@@ -31,5 +41,5 @@
   <!--     colormap: 2 -->
   <!--   </rosparam> -->
   <!-- </node> -->
-  
+
 </launch>
