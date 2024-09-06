@@ -1,0 +1,50 @@
+<launch>
+  <arg name="rosbag" />
+  <arg name="camera_ns" default="head_camera"/>
+  <arg name="gui" default="true" />
+  <arg name="loop" default="true" />
+  <arg name="manager" default="rosbag_play_nodelet_manager" />
+
+  <arg name="loop_flag" value="--loop" if="$(arg loop)" />
+  <arg name="loop_flag" value="" unless="$(arg loop)" />
+
+  <arg name="depth_registration" value="false" />
+
+  <arg name="RGB_CAMERA_INFO" value="/$(arg camera_ns)/rgb/camera_info" />
+  <arg name="RGB_IMAGE" value="/$(arg camera_ns)/rgb/image_raw" />
+  <arg name="DEPTH_CAMERA_INFO" value="/$(arg camera_ns)/depth/camera_info" />
+  <arg name="DEPTH_IMAGE" value="/$(arg camera_ns)/depth/image_raw" />
+
+  <node pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager" output="screen" />
+  <node name="rgb_decompress" pkg="image_transport" type="republish"
+        args="compressed in:=$(arg RGB_IMAGE) raw out:=$(arg RGB_IMAGE)" />
+  <node name="depth_decompress" pkg="image_transport" type="republish"
+        args="compressedDepth in:=$(arg DEPTH_IMAGE) raw out:=$(arg DEPTH_IMAGE)" />
+   <node pkg="nodelet" type="nodelet" name="point_cloud_xyzrgb"
+        args="load depth_image_proc/point_cloud_xyzrgb $(arg manager)" output="screen" >
+    <remap from="rgb/camera_info" to="$(arg RGB_CAMERA_INFO)" />
+    <remap from="rgb/image_rect_color" to="$(arg RGB_IMAGE)" />
+    <remap from="depth_registered/image_rect" to="$(arg DEPTH_IMAGE)" />
+    <remap from="depth_registered/points" to="/$(arg camera_ns)/depth_registered/points" />
+    <rosparam>
+      queue_size: 100
+    </rosparam>
+  </node>
+
+  <param name="/use_sim_time" value="true" />
+  <param name="robot_description"
+         command="$(find xacro)/xacro --inorder $(find hironx_tutorial)/models/HIRONXJSK.gazebo.xacro
+                  gazebo:=false" />
+
+  <node pkg="rosbag" type="play" name="rosbag_play"
+        args="$(arg rosbag) $(arg loop_flag) --clock" output="screen" />
+
+  <!-- <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"> -->
+  <!--   <remap from="joint_states" to="/robot/joint_states"/> -->
+  <!-- </node> -->
+
+  <node name="$(anon rviz)" pkg="rviz" type="rviz"
+        args="-d $(find jsk_hironx_teleop)/rvizconfig/rosbag.rviz"
+        if="$(arg gui)" />
+
+</launch>
