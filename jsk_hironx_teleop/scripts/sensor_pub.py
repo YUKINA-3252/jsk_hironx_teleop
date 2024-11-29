@@ -4,15 +4,7 @@ import numpy as np
 import rospy
 import serial
 import serial.tools.list_ports
-from jsk_hironx_teleop.msg import ContactSensorForceMoment
-
-def publisher(force, moment):
-    while not rospy.is_shutdown():
-        msg = ContactSensorForceMoment()
-        msg.force = force
-        msg.moment = moment
-        pub.publish(msg)
-        rate.sleep()
+from geometry_msgs.msg import WrenchStamped
 
 class MultiEMAFilter:
     def __init__(self, alpha, num_elements):
@@ -28,11 +20,11 @@ class MultiEMAFilter:
             smoothed_values.append(self.ema_values[i])
         return smoothed_values
 
-Serial_Port = serial.Serial(port='/dev/ttyACM0', baudrate=230400, parity='N', timeout=1)
+Serial_Port = serial.Serial(port='/dev/ttyACM1', baudrate=230400, parity='N', timeout=1)
 
 Serial_Port.write(b'020202\r\n')
 
-pub = rospy.Publisher('contact_sensor_force_moment_topic', ContactSensorForceMoment, queue_size=10)
+pub = rospy.Publisher('contact_sensor_force_moment_topic', WrenchStamped, queue_size=10)
 rospy.init_node('contact_sensor_force_moment_publisher', anonymous=True)
 rate = rospy.Rate(92)
 
@@ -57,10 +49,15 @@ try:
                                    adjust_decimal_data[5] * 0.05
                                    ]
             smoothed_adjust_decimal_data = ema_filter.update(adjust_decimal_data)
-            msg = ContactSensorForceMoment()
+            msg = WrenchStamped()
             msg.header.stamp = rospy.Time.now()
-            msg.force = smoothed_adjust_decimal_data[:3]
-            msg.moment = smoothed_adjust_decimal_data[3:]
+            msg.header.frame_id = "/contact_sensor"
+            msg.wrench.force.x = smoothed_adjust_decimal_data[0]
+            msg.wrench.force.y = smoothed_adjust_decimal_data[1]
+            msg.wrench.force.z = smoothed_adjust_decimal_data[2]
+            msg.wrench.torque.x = smoothed_adjust_decimal_data[3]
+            msg.wrench.torque.y = smoothed_adjust_decimal_data[4]
+            msg.wrench.torque.z = smoothed_adjust_decimal_data[5]
             pub.publish(msg)
             rate.sleep()
 

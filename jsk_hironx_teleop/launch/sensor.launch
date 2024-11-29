@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<launch>
+  <node pkg="jsk_hironx_teleop" type="sensor_pub.py" name="sensor_pub" output="screen">
+  </node>
+
+  <node pkg="jsk_topic_tools" type="relay" name="publish_larm_topic" output="screen">
+    <remap from="~input" to="/contact_sensor_force_moment_topic"/>
+    <remap from="~output" to="/larm_contact_sensor_force_moment_topic"/>
+  </node>
+
+  <node pkg="jsk_topic_tools" type="relay" name="publish_rarm_topic" output="screen">
+    <remap from="~input" to="/contact_sensor_force_moment_topic"/>
+    <remap from="~output" to="/rarm_contact_sensor_force_moment_topic"/>
+  </node>
+</launch>
