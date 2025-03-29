@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
-
+#!/usr/bin/env python
+import sys
+print(sys.path)
 import numpy as np
 import rospy
 import serial
@@ -20,7 +21,7 @@ class MultiEMAFilter:
             smoothed_values.append(self.ema_values[i])
         return smoothed_values
 
-Serial_Port = serial.Serial(port='/dev/ttyACM1', baudrate=230400, parity='N', timeout=1)
+Serial_Port = serial.Serial(port='/dev/ttyACM0', baudrate=230400, parity='N', timeout=1)
 
 Serial_Port.write(b'020202\r\n')
 

@@ -1,0 +1,6 @@
+boxes:
+- dimensions: [0.6, 1.0, 0.5]
+  frame_id: WAIST
+  name: workspace
+  orientation: [0.0, 0.0, 0.0, 1.0]
+  position: [0.5, 0.012, -0.043]

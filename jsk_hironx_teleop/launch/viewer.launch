@@ -3,6 +3,6 @@
   <arg name="gui" default="true" />
 
   <node name="$(anon rviz)" pkg="rviz" type="rviz" if="$(arg gui)"
-        args="-d $(find wrapping_melodic)/rvizconfig/hiro.rviz"/>
+        args="-d $(find jsk_hironx_teleop)/rvizconfig/hiro.rviz"/>
 
 </launch>

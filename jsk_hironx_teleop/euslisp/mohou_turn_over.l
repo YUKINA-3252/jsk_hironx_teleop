@@ -16,10 +16,29 @@
 (defun turn-over-close-lhand ()
   (let ((hand-angle-vector (send *hironxjsk* :hand-angle-vector :lhand)))
     (setf (aref hand-angle-vector 0) -30)
-    ;; (setf (aref hand-angle-vector 1) 10)
-    (setf (aref hand-angle-vector 1) 20)
-    (setf (aref hand-angle-vector 2) 10)
+    (setf (aref hand-angle-vector 1) 10)
+    ;; (setf (aref hand-angle-vector 1) 20)
+    ;; (setf (aref hand-angle-vector 2) 10)
+    (setf (aref hand-angle-vector 2) 20)
     (setf (aref hand-angle-vector 3) 40)
+    (send *hironxjsk* :hand-angle-vector :lhand hand-angle-vector)
+    (ir2ri-hand)
+    ))
+(defun lhand-tight-grasp ()
+  (let ((hand-angle-vector (send *hironxjsk* :hand-angle-vector :lhand)))
+    (setf (aref hand-angle-vector 0) -40)
+    (setf (aref hand-angle-vector 1) 20)
+    (setf (aref hand-angle-vector 2) 50)
+    (setf (aref hand-angle-vector 3) -10)
+    (send *hironxjsk* :hand-angle-vector :lhand hand-angle-vector)
+    (ir2ri-hand)
+    ))
+(defun open-lhand ()
+  (let ((hand-angle-vector (send *hironxjsk* :hand-angle-vector :lhand)))
+    (setf (aref hand-angle-vector 0) 90)
+    (setf (aref hand-angle-vector 1) 0)
+    (setf (aref hand-angle-vector 2) -90)
+    (setf (aref hand-angle-vector 3) 0)
     (send *hironxjsk* :hand-angle-vector :lhand hand-angle-vector)
     (ir2ri-hand)))
 
@@ -40,6 +59,7 @@
     (send *hironxjsk* :hand-angle-vector :rhand hand-angle-vector)
     (ir2ri-hand)))
 
+
 (reset-pose)
 (detect-pose)
 
@@ -58,7 +78,7 @@
 
 ;; lhand
 (turn-over-open-lhand)
-(send *left-target-arrow* :move-to (send (send (send (send *target-paper-arrow* :copy-worldcoords) :rotate (deg2rad 90) :z) :rotate (deg2rad -90) :x) :translate (float-vector -20 (+ (/ z-of-paper 2) 20) 31) :world) :world)
+(send *left-target-arrow* :move-to (send (send (send (send *target-paper-arrow* :copy-worldcoords) :rotate (deg2rad 90) :z) :rotate (deg2rad -90) :x) :translate (float-vector -20 (+ (/ z-of-paper 2) 20) 35) :world) :world)
 (solve-ik-larm *left-target-arrow*)
 (ir2ri)
 ;; lower right arm until it hits the desk
@@ -73,12 +93,15 @@
 (send *left-target-arrow* :rotate (deg2rad -20) :x :world)
 (solve-ik-larm *left-target-arrow*)
 (ir2ri)
-;; (send *left-target-arrow* :translate #f(0 -20 0) :world)
-;; (solve-ik-larm *left-target-arrow*)
-;; (ir2ri)
+(send *left-target-arrow* :translate #f(0 -20 0) :world)
+(solve-ik-larm *left-target-arrow*)
+(ir2ri)
+
 ;; close hand
-(turn-over-close-lhand)
+;; (turn-over-close-lhand)
+(lhand-tight-grasp)
 (unix::sleep 2)
+
 (send *left-target-arrow* :rotate (deg2rad 20) :x :world)
 (send *left-target-arrow* :translate #f(0 0 10) :world)
 (solve-ik-larm *left-target-arrow*)

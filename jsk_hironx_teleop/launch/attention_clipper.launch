@@ -1,0 +1,60 @@
+<launch>
+  <arg name="input_cloud" default="" />
+  <arg name="manager" default="" />
+  <arg name="identify_name" default="" />
+
+  <!-- attention clipper -->
+  <node name="transformable_interactive_server_$(arg identify_name)"
+        pkg="jsk_interactive_marker" type="transformable_server_sample">
+    <rosparam subst_value="true">
+      display_interactive_manipulator: true
+      display_interactive_manipulator_only_selected: true
+    </rosparam>
+  </node>
+
+  <node name="transformable_markers_client_$(arg identify_name)"
+        pkg="jsk_interactive_marker" type="transformable_markers_client.py" output="screen">
+    <remap from="~server" to="transformable_interactive_server_$(arg identify_name)" />
+    <rosparam subst_value="true">
+      config_file: $(find jsk_hironx_teleop)/config/$(arg identify_name).yaml
+      config_auto_save: true
+      interactive_mode: 2  # BUTTON
+    </rosparam>
+  </node>
+
+  <!-- bboxes -> bbox -->
+  <node name="bboxes_to_bbox_$(arg identify_name)"
+        pkg="jsk_pcl_ros_utils" type="bounding_box_array_to_bounding_box"
+        output="screen" >
+    <remap from="~input" to="transformable_markers_client_$(arg identify_name)/output/boxes" />
+    <rosparam>
+      index: 0
+    </rosparam>
+  </node>
+
+  <!-- attention_clipper -->
+  <node name="bbox_attention_clipper_$(arg identify_name)"
+        pkg="nodelet" type="nodelet" args="load jsk_pcl/AttentionClipper $(arg manager)"
+        respawn="true" >
+    <remap from="~input/points" to="$(arg input_cloud)" />
+    <remap from="~input/box" to="bboxes_to_bbox_$(arg identify_name)/output" />
+    <rosparam>
+      <!-- frame_id: tape_stand -->
+      use_multiple_attention: false
+    </rosparam>
+  </node>
+
+  <!-- extract indices -->
+  <node name="bbox_cloud_extract_$(arg identify_name)"
+        pkg="nodelet" type="nodelet" args="load jsk_pcl/ExtractIndices $(arg manager)"
+        output="screen" >
+    <remap from="~input" to="$(arg input_cloud)" />
+    <remap from="~indices" to="bbox_attention_clipper_$(arg identify_name)/output/point_indices" />
+    <rosparam>
+      keep_organized: true
+      approximate_sync: true
+      max_queue_size: 100
+    </rosparam>
+  </node>
+
+</launch>

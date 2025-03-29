@@ -10,6 +10,11 @@
 
   <arg name="depth_registration" value="false" />
 
+  <arg name="camera_type" value="head" />
+  <arg name="input_image" value="/head_camera/rgb/image_raw/compressed" />
+  <arg name="input_cloud" value="/head_camera/depth_registered/points" />
+  <arg name="camera_frame_id" value="head_camera_rgb_optical_frame" />
+
   <arg name="RGB_CAMERA_INFO" value="/$(arg camera_ns)/rgb/camera_info" />
   <arg name="RGB_IMAGE" value="/$(arg camera_ns)/rgb/image_raw" />
   <arg name="DEPTH_CAMERA_INFO" value="/$(arg camera_ns)/depth/camera_info" />
@@ -47,4 +52,11 @@
         args="-d $(find jsk_hironx_teleop)/rvizconfig/rosbag.rviz"
         if="$(arg gui)" />
 
+  <!-- tabletop detector -->
+  <include file="$(find jsk_hironx_teleop)/launch/tabletop_object_detector.launch">
+    <arg name="input_image" value="$(arg input_image)" />
+    <arg name="input_cloud" value="$(arg input_cloud)" />
+    <arg name="manager" value="$(arg manager)" />
+    <arg name="camera_frame_id" value="$(arg camera_frame_id)" />
+  </include>
 </launch>

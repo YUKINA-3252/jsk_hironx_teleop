@@ -1,0 +1,20 @@
+<launch>
+  <machine name="localhost" address="localhost" />
+  <arg name="machine" default="localhost" />
+
+  <node pkg="nodelet" type="nodelet" name="d435_camera_manager" args="manager"
+        machine="$(arg machine)" output="screen" />
+
+  <!-- camera -->
+  <arg name="camera_ns" default="realsense" />
+  <arg name="camera_type" default="d435" />
+  <arg name="manager" default="$(arg camera_ns)_camera_manager" />
+  <arg name="input_cloud" default="/$(arg camera_ns)/depth_registered/quarter/points" />
+  <arg name="camera_frame_id" default="$(arg camera_ns)_color_optical_frame" />
+
+  <include file="$(find jsk_hironx_teleop)/launch/include/realsense_$(arg camera_type).launch">
+    <arg name="camera_ns" value="$(arg camera_ns)" />
+    <arg name="manager" value="$(arg manager)" />
+    <arg name="publish_tf" value="false" />
+  </include>
+</launch>
